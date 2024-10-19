@@ -1,0 +1,141 @@
+<html><head><base href="https://cdn.jsdelivr.net/gh/smartdns/iptv-proxy@latest/"><title>SmartDNS IPTV Player</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f0f0f0;
+  }
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: #fff;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+  h1 {
+    color: #333;
+    text-align: center;
+  }
+  #videoPlayer {
+    width: 100%;
+    max-width: 720px;
+    margin: 20px auto;
+    display: block;
+  }
+  #channelList {
+    list-style-type: none;
+    padding: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+  }
+  #channelList li {
+    padding: 10px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  #channelList li:hover {
+    background-color: #f0f0f0;
+  }
+  #channelList li.active {
+    background-color: #e0e0e0;
+    font-weight: bold;
+  }
+  #searchInput {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>SmartDNS IPTV Player</h1>
+    <video id="videoPlayer" controls></video>
+    <input type="text" id="searchInput" placeholder="Search channels...">
+    <ul id="channelList"></ul>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script>
+    const videoPlayer = document.getElementById('videoPlayer');
+    const channelList = document.getElementById('channelList');
+    const searchInput = document.getElementById('searchInput');
+    let channels = [];
+
+    // Fetch the channel list
+    fetch('https://iptv-org.github.io/iptv/index.m3u')
+      .then(response => response.text())
+      .then(data => {
+        channels = parseM3U(data);
+        renderChannelList(channels);
+      });
+
+    function parseM3U(m3uContent) {
+      const lines = m3uContent.split('\n');
+      const channels = [];
+      let currentChannel = {};
+
+      for (let i = 1; i < lines.length; i++) {
+        if (lines[i].startsWith('#EXTINF:')) {
+          const infoLine = lines[i].split(',');
+          currentChannel.name = infoLine[1];
+        } else if (lines[i].trim() !== '') {
+          currentChannel.url = lines[i].trim();
+          channels.push(currentChannel);
+          currentChannel = {};
+        }
+      }
+
+      return channels;
+    }
+
+    function renderChannelList(channels) {
+      channelList.innerHTML = '';
+      channels.forEach((channel, index) => {
+        const li = document.createElement('li');
+        li.textContent = channel.name;
+        li.addEventListener('click', () => playChannel(channel.url, index));
+        channelList.appendChild(li);
+      });
+    }
+
+    function playChannel(url, index) {
+      if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(url);
+        hls.attachMedia(videoPlayer);
+        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+          videoPlayer.play();
+        });
+      } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+        videoPlayer.src = url;
+        videoPlayer.addEventListener('loadedmetadata', function() {
+          videoPlayer.play();
+        });
+      }
+
+      // Update active channel in the list
+      const items = channelList.getElementsByTagName('li');
+      for (let i = 0; i < items.length; i++) {
+        items[i].classList.remove('active');
+      }
+      items[index].classList.add('active');
+    }
+
+    searchInput.addEventListener('input', function() {
+      const searchTerm = this.value.toLowerCase();
+      const filteredChannels = channels.filter(channel => 
+        channel.name.toLowerCase().includes(searchTerm)
+      );
+      renderChannelList(filteredChannels);
+    });
+  </script>
+</body></html>
